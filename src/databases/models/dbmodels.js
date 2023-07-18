@@ -4,7 +4,7 @@ const { sequelize } = require('../dbconnection');
 class Users extends Model { }
 Users.init(
     {
-        userId: {
+        user_id: {
             type: DataTypes.INTEGER,
             autoIncrement: true,
             allowNull: false,
@@ -16,11 +16,14 @@ Users.init(
         email: {
             type: new DataTypes.STRING
         },
-        employeeCode: {
+        employee_code: {
             type: new DataTypes.STRING
         },
-        userType: {
+        user_type: {
             type: new DataTypes.INTEGER
+        },
+        password: {
+            type: new DataTypes.STRING
         }
     },
     {

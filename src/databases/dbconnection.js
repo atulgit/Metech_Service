@@ -2,7 +2,7 @@
 const { Sequelize, DataTypes, Model } = require("sequelize");
 
 const sequelize = new Sequelize(
-    'Metyis_Trip',
+    'Metech',
     'root',
     'Pass@123',
     {

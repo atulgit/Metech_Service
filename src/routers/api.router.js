@@ -21,15 +21,19 @@ router.post('/approvetrip', apiController.approveTrip);
 
 router.post('/rejecttrip', apiController.rejectTrip);
 
-router.get('/mytrips', apiController.getMyTripsGroup);
+router.get('/mytickets', apiController.getMyTickets);
 
 router.get('/projects', apiController.getProjects);
 
 router.get('/otherstrips', apiController.getOthersTripsGroup);
 
-router.post('/trip', apiController.createTrip);
+router.post('/ticket', apiController.createTicket);
 
 router.post('/updatetrip', apiController.updateTrip);
+
+router.post('/assignticket', apiController.assignTicket);
+
+router.get('/assignedtickets', apiController.getAssignedTickets);
 
 router.post('/canceltrip', apiController.cancelTrip);
 
@@ -47,7 +51,7 @@ router.get('/userdetail', apiController.getUserDetail);
 
 router.get('/approvers', apiController.getApprovers);
 
-router.get('/tripdetail', apiController.getTripDetail);
+router.get('/tripdetail', apiController.getTicketDetail);
 
 // router.post('/endpoint', apiController.subcriptionEndpoint);
 

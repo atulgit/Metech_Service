@@ -4,7 +4,7 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 if (NODE_ENV === 'development') dotenv.config();
 
 const config1 = require('config');
-const PORT = 8080;
+const PORT = 8081;
 const DB_HOST = 3306;
 
 //console.log("Port No: " + config1.get("PORT"));

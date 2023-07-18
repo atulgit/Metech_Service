@@ -5,7 +5,7 @@ class Project extends Model { }
 
 Project.init(
     {
-        projectId: {
+        project_id: {
             type: DataTypes.INTEGER,
             autoIncrement: true,
             allowNull: false,

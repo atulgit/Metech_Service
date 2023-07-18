@@ -13,30 +13,38 @@ const sns = require('../models/sns.model');
 
 const { sequelize } = require('../databases/dbconnection');
 const { Users } = require('../databases/models/dbmodels');
-const { Trip } = require('../databases/models/trip.model');
+const { TicketUserMappingModel } = require('../databases/models/ticket_user_mapping.model');
+const { Ticket } = require('../databases/models/ticket.model');
 const { GroupApprover } = require('../databases/models/grp_approver.model');
 const { GroupApproval } = require('../databases/models/grp_approval.model');
 const { ApproverGroup } = require('../databases/models/approvers_to_grp_map.model');
 const { Group } = require('../databases/models/group.model');
 const { raw } = require('express');
 const { Project } = require('../databases/models/project.model');
-const { Op } = require('sequelize');
+const { Op, where } = require('sequelize');
+const { map } = require('../app');
 
-Trip.belongsTo(GroupApproval, { foreignKey: 'tripId', targetKey: 'trip_id' });
-Trip.belongsTo(Project, { foreignKey: 'projectId', targetKey: 'projectId' });
-Trip.belongsTo(Users, { foreignKey: 'userId', targetKey: 'userId' });
-GroupApproval.belongsTo(GroupApprover, { foreignKey: 'grp_approver_id', targetKey: 'grp_approver_id' });
-GroupApprover.belongsTo(Group, { as: 'FromGroup', foreignKey: 'from_grp_id', targetKey: 'grp_id' });
-GroupApprover.belongsTo(Group, { as: 'ToGroup', foreignKey: 'to_grp_id', targetKey: 'grp_id' });
-GroupApproval.belongsTo(Trip, { foreignKey: 'trip_id', targetKey: 'tripId' });
-GroupApprover.belongsTo(GroupApproval, { foreignKey: 'grp_approver_id', targetKey: 'grp_approver_id' });
-ApproverGroup.belongsTo(GroupApprover, { as: 'ToGroupApprovers', foreignKey: 'grp_id', targetKey: 'to_grp_id' });
-ApproverGroup.belongsTo(GroupApprover, { as: 'FromGroupApprovers', foreignKey: 'grp_id', targetKey: 'from_grp_id' });
-Group.belongsTo(Project, { foreignKey: 'project_id', targetKey: 'projectId' });
-Users.belongsTo(ApproverGroup, { foreignKey: 'userId', targetKey: 'user_id' });
-GroupApprover.belongsTo(ApproverGroup, { foreignKey: 'to_grp_id', targetKey: 'grp_id' });
-Group.belongsTo(ApproverGroup, { foreignKey: 'grp_id', targetKey: 'grp_id' });
-ApproverGroup.belongsTo(Group, { foreignKey: 'grp_id', targetKey: 'grp_id' });
+Ticket.belongsTo(TicketUserMappingModel, { foreignKey: 'ticket_id', targetKey: 'ticket_id' });
+Ticket.belongsTo(Project, { foreignKey: 'project_id', targetKey: 'project_id' });
+Ticket.belongsTo(Users, { foreignKey: 'user_id', targetKey: 'user_id' });
+TicketUserMappingModel.belongsTo(Users, { as: 'FromUser', foreignKey: 'from_user_id', targetKey: 'user_id' });
+TicketUserMappingModel.belongsTo(Users, { as: 'ToUser', foreignKey: 'to_user_id', targetKey: 'user_id' });
+
+// Trip.belongsTo(GroupApproval, { foreignKey: 'tripId', targetKey: 'trip_id' });
+// Trip.belongsTo(Project, { foreignKey: 'projectId', targetKey: 'projectId' });
+// Trip.belongsTo(Users, { foreignKey: 'userId', targetKey: 'userId' });
+// GroupApproval.belongsTo(GroupApprover, { foreignKey: 'grp_approver_id', targetKey: 'grp_approver_id' });
+// GroupApprover.belongsTo(Group, { as: 'FromGroup', foreignKey: 'from_grp_id', targetKey: 'grp_id' });
+// GroupApprover.belongsTo(Group, { as: 'ToGroup', foreignKey: 'to_grp_id', targetKey: 'grp_id' });
+// GroupApproval.belongsTo(Trip, { foreignKey: 'trip_id', targetKey: 'tripId' });
+// GroupApprover.belongsTo(GroupApproval, { foreignKey: 'grp_approver_id', targetKey: 'grp_approver_id' });
+// ApproverGroup.belongsTo(GroupApprover, { as: 'ToGroupApprovers', foreignKey: 'grp_id', targetKey: 'to_grp_id' });
+// ApproverGroup.belongsTo(GroupApprover, { as: 'FromGroupApprovers', foreignKey: 'grp_id', targetKey: 'from_grp_id' });
+// Group.belongsTo(Project, { foreignKey: 'project_id', targetKey: 'projectId' });
+// Users.belongsTo(ApproverGroup, { foreignKey: 'userId', targetKey: 'user_id' });
+// GroupApprover.belongsTo(ApproverGroup, { foreignKey: 'to_grp_id', targetKey: 'grp_id' });
+// Group.belongsTo(ApproverGroup, { foreignKey: 'grp_id', targetKey: 'grp_id' });
+// ApproverGroup.belongsTo(Group, { foreignKey: 'grp_id', targetKey: 'grp_id' });
 
 
 sequelize.authenticate().then(async () => {
@@ -88,53 +96,131 @@ const getUserDetail = async (req, res) => {
     }
 }
 
-const createTrip = async (req, res) => {
+const assignTicket = async (req, res) => {
     var body = req.body;
     var json = JSON.parse(JSON.stringify(body));
 
     try {
-        var tripObj = await Trip.create({
-            name: json["name"],
-            userId: parseInt(json["userId"]),
-            projectId: parseInt(json["projectId"]),
-            reason: json["reason"],
-            travel_mode: parseInt(json["travelMode"]),
-            startDate: json["startDate"],
-            endDate: json["endDate"],
-            hotel_from_date: json["hotelFromDate"] != '' ? json["hotelFromDate"] : null,
-            hotel_to_date: json["hotelToDate"] != '' ? json["hotelToDate"] : null,
-            from_country: json["fromCountry"],
-            from_city: json["fromCity"],
-            to_country: json["toCountry"],
-            to_city: json["toCity"]
+
+        var mapping = await TicketUserMappingModel.findOne({
+            where: {
+                ticket_id: parseInt(json['ticket_id'])
+            }
         });
 
-        // var group = await Group.findOne({
-        //     where: {
-        //         project_id: parseInt(json["projectId"])
-        //     }
-        // });
+        if (mapping == null) {
+            await TicketUserMappingModel.create({
+                ticket_id: parseInt(json['ticket_id']),
+                from_user_id: parseInt(json['from_user_id']),
+                to_user_id: parseInt(json['to_user_id'])
+            });
+        }
+        else {
+            await TicketUserMappingModel.update({
+                from_user_id: parseInt(json['from_user_id']),
+                to_user_id: parseInt(json['to_user_id'])
+            }, {
+                where: {
+                    ticket_id: parseInt(json['ticket_id'])
+                }
+            });
+        }
 
-        // var approver = await GroupApprover.findOne({
-        //     where: {
-        //         from_grp_id: 0,
-        //         to_grp_id: group.grp_id
-        //     }
-        // });
-
-
-        // var approval = await GroupApproval.create({
-        //     trip_id: tripObj.tripId,
-        //     grp_approver_id: approver.grp_approver_id,
-        //     approver_user_id: parseInt(json["userId"]),
-        //     status: 0
-        // });
+        await Ticket.update({
+            status: 1
+        }, {
+            where: {
+                ticket_id: parseInt(json['ticket_id'])
+            }
+        });
 
         res.send({
             statusCode: 200,
             statusMessage: 'Ok',
             message: 'Successfully retrieved all the users.',
-            data: JSON.stringify(getTripObject(tripObj)),
+            data: JSON.stringify(""),
+        });
+    }
+    catch (e) {
+        res.status(500).send({ statusCode: 500, statusMessage: 'Internal Server Error', message: null, data: null });
+    }
+}
+
+const createTicket = async (req, res) => {
+    var body = req.body;
+    var json = JSON.parse(JSON.stringify(body));
+    var ticket_id = parseInt(json["ticket_id"]);
+
+    try {
+
+        var ticketObj = null;
+
+        if (ticket_id == -1) {
+            ticketObj = await Ticket.create({
+                title: json["title"],
+                user_id: parseInt(json["user_id"]),
+                project_id: parseInt(json["project_id"]),
+                description: json["description"],
+                type: parseInt(json["ticket_type"]),
+                deadline: json["deadline"],
+                date: json["deadline"],
+                status: 0
+                // assigned_to_id: json["assigned_to_id"]
+            });
+
+            await TicketUserMappingModel.create({
+                ticket_id: parseInt(ticketObj.ticket_id),
+                from_user_id: parseInt(json['user_id']),
+                to_user_id: parseInt(json['assigned_to_user_id'])
+            });
+
+            ticket_id = ticketObj.ticket_id;
+        }
+        else {
+            ticketObj = await Ticket.update({
+                title: json["title"],
+                user_id: parseInt(json["user_id"]),
+                project_id: parseInt(json["project_id"]),
+                description: json["description"],
+                type: parseInt(json["ticket_type"]),
+                deadline: json["deadline"],
+                date: json["deadline"],
+                status: 0
+            }, {
+                where: {
+                    ticket_id: ticket_id
+                }
+            });
+
+            await TicketUserMappingModel.update({
+                from_user_id: parseInt(json['user_id']),
+                to_user_id: parseInt(json['assigned_to_user_id'])
+            }, {
+                where: {
+                    ticket_id: ticket_id
+                }
+            });
+        }
+
+        var ticketObject = {
+            title: json["title"],
+            user_id: parseInt(json["user_id"]),
+            project_id: parseInt(json["project_id"]),
+            description: json["description"],
+            type: parseInt(json["ticket_type"]),
+            deadline: json["deadline"],
+            date: json["deadline"],
+            status: 0,
+            ticket_id: ticket_id,
+            assigned_from_user_id: parseInt(json["user_id"]),
+            assigned_to_user_id: parseInt(json["assigned_to_user_id"])
+        };
+
+        res.send({
+            statusCode: 200,
+            statusMessage: 'Ok',
+            message: 'Successfully retrieved all the users.',
+            data: JSON.stringify(ticketObject),
         });
     } catch (err) {
         res.status(500).send({ statusCode: 500, statusMessage: 'Internal Server Error', message: null, data: null });
@@ -691,26 +777,13 @@ const loginUser = async (req, res) => {
 
         var userObj = (await Users.findOne({
             raw: true,
-            attributes: ['userId', 'email', 'name', 'employeeCode', 'userType'],
+            attributes: ['user_id', 'email', 'name', 'employee_code', 'user_type'],
             where: {
                 email: json["email"]
             }
         }));
 
         if (userObj != null) {
-            usrObj = {
-                'userId': userObj.userId,
-                'email': userObj.email
-            };
-
-
-            userObj.groups = (await ApproverGroup.findAll({
-                raw: true,
-                where: {
-                    user_id: userObj.userId
-                }
-            }));
-
             res.send({
                 statusCode: 200,
                 statusMessage: 'Ok',
@@ -732,11 +805,7 @@ const loginUser = async (req, res) => {
 const addUser = async (req, res) => {
     var body = req.body;
     var json = JSON.parse(JSON.stringify(body));
-    var groups = json["groups"];
     var action = json["action"];
-
-    if (groups != "")
-        groups = groups.split(",");
 
     try {
 
@@ -751,19 +820,13 @@ const addUser = async (req, res) => {
             var result = await Users.create({
                 name: json["name"],
                 email: json["email"],
-                employeeCode: json["employeeCode"],
-                userType: parseInt(json["userType"])
+                employee_code: json["employee_code"],
+                password: '123',
+                user_type: 2
             })
 
-            var grp_user_map = [];
-            for (var i = 0; i < groups.length; i++) {
-                grp_user_map[i] = { user_id: result.userId, grp_id: parseInt(groups[i]) };
-            }
-
-            await ApproverGroup.bulkCreate(grp_user_map);
-
-            res.status(201).send({
-                statusCode: 201,
+            res.status(200).send({
+                statusCode: 200,
                 statusMessage: 'Created',
                 message: 'Successfully created a user.',
                 data: null,
@@ -773,55 +836,13 @@ const addUser = async (req, res) => {
             await Users.update({
                 name: json["name"],
                 email: json["email"],
-                employeeCode: json["employeeCode"],
-                userType: parseInt(json["userType"])
+                employee_code: json["employee_code"],
+                user_type: parseInt(json["user_type"])
             }, {
                 where: {
                     email: json["email"]
                 }
             });
-
-            for (var i = 0; i < groups.length; i++) {
-                var userGrp = await ApproverGroup.findOne({
-                    where: {
-                        user_id: user.userId,
-                        grp_id: parseInt(groups[i])
-                    }
-                });
-
-                if (userGrp == null) {
-                    await ApproverGroup.create({
-                        user_id: user.userId,
-                        grp_id: parseInt(groups[i])
-                    })
-                }
-            }
-
-
-            var dbUserGrps = await ApproverGroup.findAll({
-                where: {
-                    user_id: user.userId
-                }
-            });
-
-            for (var j = 0; j < dbUserGrps.length; j++) {
-                var exists = false;
-                for (var i = 0; i < groups.length; i++) {
-                    if (dbUserGrps[j].user_id == user.userId && dbUserGrps[j].grp_id == groups[i]) {
-                        exists = true;
-                        break;
-                    }
-                }
-
-                if (!exists) {
-                    await ApproverGroup.destroy({
-                        where: {
-                            user_id: user.userId,
-                            grp_id: dbUserGrps[j].grp_id,
-                        }
-                    })
-                }
-            }
 
             res.status(200).send({
                 statusCode: 200,
@@ -1158,86 +1179,44 @@ const subcriptionEndpoint = async (req, res) => {
 }
 
 
-const getTripDetail = async (req, res) => {
-    var tripId = req.query.tripId;
+const getTicketDetail = async (req, res) => {
+    var ticket_id = req.query.ticket_id;
 
     try {
 
-        var trip = await Trip.findOne({
+        var ticketObj = await Ticket.findOne({
+            attributes: ['ticket_id', 'title', 'description', 'deadline', 'project_id',
+                'type', 'status', 'user_id',
+                [sequelize.col('ticket_user_mapping.from_user_id'), 'assigned_from_user_id'],
+                [sequelize.col('ticket_user_mapping.to_user_id'), 'assigned_to_user_id'],
+                [sequelize.col('project.project_name'), 'project_name'],
+                [sequelize.col('ticket_user_mapping.FromUser.name'), 'assigned_from_user_name'],
+                [sequelize.col('ticket_user_mapping.ToUser.name'), 'assigned_to_user_name'],],
             include: [{
+                model: TicketUserMappingModel,
+                as: TicketUserMappingModel,
+                include: [{
+                    model: Users,
+                    as: 'FromUser'
+                }, {
+                    model: Users,
+                    as: 'ToUser'
+                }]
+            }, {
                 model: Project,
-                as: Project
+                as: Project,
+                attributes: []
             }],
             where: {
-                tripId: tripId
+                ticket_id: parseInt(ticket_id)
             }
         });
-
-        var tripObject = getTripObject(trip);
-
-        tripObject.approvals = await GroupApproval.findAll({
-            raw: true,
-            attributes: ['trip_id',
-                ['status', 'isApproved'],
-                'grp_approver.from_grp_id',
-                'grp_approver.to_grp_id',
-                [sequelize.col('grp_approver.ToGroup.grp_name'), 'ToGrpName'],
-                [sequelize.col('grp_approver.FromGroup.grp_name'), 'FromGrpName'],
-                [sequelize.col('grp_approver.ToGroup.project_id'), 'ProjectId']], //'grp_approver.ToGroup.grp_name', 'grp_approver.FromGroup.grp_name'
-            include: [{
-                model: GroupApprover,
-                as: GroupApprover,
-                attributes: [],
-                include: [{
-                    model: Group,
-                    as: 'FromGroup',
-                    attributes: [],
-                }, {
-                    model: Group,
-                    as: 'ToGroup',
-                    attributes: []
-                }]
-            }],
-            where: {
-                trip_id: tripId
-            }
-        })
-
-
-        // var result = await User.getTripDetail(tripId);
-        // var tripDetail;
-
-        // var current_id;
-        // var index = 0;
-
-
-        // for (var i = 0; i < result.length; i++) {
-        //     var trip = result[i];
-        //     if (current_id != trip.tripId) { //if current trip is new trip
-        //         var tripApprovals = result.filter(function filterApprovals(trp) {
-        //             if (trp.tripId == trip.tripId) return true;
-        //         });
-        //         var nonApprovals = tripApprovals.filter(function nonApprovalsFilter(apr) {
-        //             if (apr.isAprooved != 2) return true;
-        //         });
-        //         var isTripApproved = nonApprovals.length > 0 ? 0 : 2;
-        //         tripDetail = getTripObject(trip);
-        //         tripDetail.isApproved = isTripApproved;
-        //         tripDetail.approvals = tripApprovals;
-        //     }
-        //     else {
-
-        //     }
-
-        //     current_id = trip.tripId;
-
-        // }
 
         res.status(200).send({
             statusCode: 201,
             statusMessage: 'Created',
             message: 'Successfully created a user.',
-            data: JSON.stringify(tripObject),
+            data: JSON.stringify(ticketObj),
         });
     } catch (err) {
         res.status(500).send({
@@ -1249,51 +1228,114 @@ const getTripDetail = async (req, res) => {
     }
 };
 
-const getMyTrips = async (req, res) => {
-
-    var data = await Users.findAll({
-        where: {
-            userId: 30
-        }
-    });
+const getMyTickets = async (req, res) => {
 
     var userId = req.query.userId;
 
     try {
-        var result = await User.getMyTrips(userId);
-        var trips = [];
 
-        var current_id;
-        var index = 0;
-
-        for (var i = 0; i < result.length; i++) {
-            var trip = result[i];
-            if (current_id != trip.tripId) { //if current trip is new trip
-                var tripApprovals = result.filter(function filterApprovals(trp) {
-                    if (trp.tripId == trip.tripId) return true;
-                });
-                var nonApprovals = tripApprovals.filter(function nonApprovalsFilter(apr) {
-                    if (apr.isAprooved != 2) return true;
-                });
-                var isTripApproved = nonApprovals.length > 0 ? 0 : 2;
-                var tripObject = getTripObject(trip);
-                tripObject.isApproved = isTripApproved;
-                tripObject.approvals = tripApprovals;
-                trips[index++] = tripObject;
+        var tickets = await Ticket.findAll({
+            required: true,
+            attributes: ['ticket_id', 'title', 'description', 'deadline', 'project_id',
+                'type', 'status', 'user_id',
+                [sequelize.col('ticket_user_mapping.FromUser.user_id'), 'assigned_from_user_id'],
+                [sequelize.col('ticket_user_mapping.ToUser.user_id'), 'assigned_to_user_id'],
+                [sequelize.col('ticket_user_mapping.FromUser.name'), 'assigned_from_user_name'],
+                [sequelize.col('ticket_user_mapping.ToUser.name'), 'assigned_to_user_name'],
+                [sequelize.col('user.name'), 'created_by_user_name'],
+                [sequelize.col('user.user_id'), 'created_by_user_id'],
+                [sequelize.col('project.project_name'), 'project_name']],
+            include: [
+                {
+                    model: TicketUserMappingModel,
+                    as: TicketUserMappingModel,
+                    include: [{
+                        model: Users,
+                        as: 'FromUser'
+                    }, {
+                        model: Users,
+                        as: 'ToUser'
+                    }]
+                },
+                {
+                    model: Users,
+                    as: Users
+                },
+                {
+                    model: Project,
+                    as: Project,
+                    attributes: []
+                }
+            ],
+            where: {
+                user_id: parseInt(userId)
             }
-            else {
-
-            }
-
-            current_id = trip.tripId;
-
-        }
+        });
 
         res.status(200).send({
             statusCode: 201,
             statusMessage: 'Created',
             message: 'Successfully created a user.',
-            data: JSON.stringify(trips),
+            data: JSON.stringify(tickets),
+        });
+    } catch (err) {
+        res.status(500).send({
+            statusCode: 500,
+            statusMessage: 'Internal Server Error',
+            message: null,
+            data: null,
+        });
+    }
+};
+
+const getAssignedTickets = async (req, res) => {
+
+    var userId = req.query.userId;
+
+    try {
+
+        var tickets = await Ticket.findAll({
+            attributes: ['ticket_id', 'title', 'description', 'deadline', 'project_id',
+                'type', 'status', 'user_id',
+                [sequelize.col('ticket_user_mapping.FromUser.user_id'), 'assigned_from_user_id'],
+                [sequelize.col('ticket_user_mapping.ToUser.user_id'), 'assigned_to_user_id'],
+                [sequelize.col('ticket_user_mapping.FromUser.name'), 'assigned_from_user_name'],
+                [sequelize.col('ticket_user_mapping.ToUser.name'), 'assigned_to_user_name'],
+                [sequelize.col('user.name'), 'created_by_user_name'],
+                [sequelize.col('user.user_id'), 'created_by_user_id'],
+                [sequelize.col('project.project_name'), 'project_name']],
+            include: [
+                {
+                    model: TicketUserMappingModel,
+                    as: TicketUserMappingModel,
+                    include: [{
+                        model: Users,
+                        as: 'FromUser'
+                    }, {
+                        model: Users,
+                        as: 'ToUser'
+                    }],
+                    where: {
+                        to_user_id: parseInt(userId)
+                    }
+                },
+                {
+                    model: Users,
+                    as: Users
+                },
+                {
+                    model: Project,
+                    as: Project,
+                    attributes: []
+                }
+            ]
+        });
+
+        res.status(200).send({
+            statusCode: 201,
+            statusMessage: 'Created',
+            message: 'Successfully created a user.',
+            data: JSON.stringify(tickets),
         });
     } catch (err) {
         res.status(500).send({
@@ -1530,12 +1572,14 @@ const deleteUser = async (req, res) => {
 };
 
 module.exports = {
+    getAssignedTickets,
+    assignTicket,
     subcriptionEndpoint,
     deleteTrip,
     getApproverUsers,
     getApprovers,
     getProjects,
-    getTripDetail,
+    getTicketDetail,
     updateTrip,
     sendForApproval,
     rejectTrip,
@@ -1543,9 +1587,9 @@ module.exports = {
     approveTrip,
     getOthersTrips,
     getOthersTripsGroup,
-    getMyTrips,
+    getMyTickets,
     getMyTripsGroup,
-    createTrip,
+    createTicket,
     loginUser,
     getUsers,
     getUserDetail,

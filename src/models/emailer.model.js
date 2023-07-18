@@ -3,7 +3,7 @@ const { ApproverGroup } = require('../databases/models/approvers_to_grp_map.mode
 const User = require('./user.model');
 const { Users } = require('../databases/models/dbmodels');
 const { Group } = require('../databases/models/group.model');
-const { Trip } = require('../databases/models/trip.model');
+const { Trip } = require('../databases/models/ticket.model');
 const sns = require('../models/sns.model');
 
 const mailer_id = "";
@@ -19,7 +19,7 @@ const serverUrl = "https://mtmsweb.s3-website-us-east-1.amazonaws.com";
 //     }
 // });
 
-ApproverGroup.belongsTo(Users, { foreignKey: 'user_id', targetKey: 'userId' });
+// ApproverGroup.belongsTo(Users, { foreignKey: 'user_id', targetKey: 'userId' });
 
 const sendForApprovalEmailer = async (to_grp_id, trip_id) => {
 

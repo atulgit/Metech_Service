@@ -3,7 +3,7 @@ const config = require('config');
 
 const DB_HOST = 'localhost'; //config.get('DB_HOST');
 const DB_PORT =  3306; //config.get('DB_PORT');
-const DB_NAME = 'Metyis_Trip'; //config.get('DB_NAME');
+const DB_NAME = 'Metech'; //config.get('DB_NAME');
 const DB_USERNAME = 'root'; //config.get('DB_USERNAME');
 const DB_USERNAME_PASSWORD = "Pass@123" //config.get('DB_USERNAME_PASSWORD');
 
