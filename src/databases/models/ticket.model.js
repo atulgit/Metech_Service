@@ -34,6 +34,9 @@ Ticket.init(
         },
         user_id: {
             type: DataTypes.INTEGER
+        },
+        priority: {
+            type: DataTypes.INTEGER
         }
     },
     {

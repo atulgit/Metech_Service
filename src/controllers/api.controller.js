@@ -23,7 +23,9 @@ const { raw } = require('express');
 const { Project } = require('../databases/models/project.model');
 const { Op, where } = require('sequelize');
 const { map } = require('../app');
+const { Comment } = require('../databases/models/comment.model');
 
+Comment.belongsTo(Users, { foreignKey: 'user_id', targetKey: 'user_id' });
 Ticket.belongsTo(TicketUserMappingModel, { foreignKey: 'ticket_id', targetKey: 'ticket_id' });
 Ticket.belongsTo(Project, { foreignKey: 'project_id', targetKey: 'project_id' });
 Ticket.belongsTo(Users, { foreignKey: 'user_id', targetKey: 'user_id' });
@@ -96,6 +98,72 @@ const getUserDetail = async (req, res) => {
     }
 }
 
+const getComments = async (req, res) => {
+    var ticket_id = parseInt(req.query.ticket_id);
+
+    try {
+        var comments = await Comment.findAll({
+            order: [['comment_id', 'DESC']],
+            raw: true,
+            include: [{
+                model: Users,
+                as: Users
+            }],
+            where: {
+                ticket_id: ticket_id
+            }
+        });
+
+        res.send({
+            statusCode: 200,
+            statusMessage: 'Ok',
+            message: 'Successfully retrieved all the users.',
+            data: JSON.stringify(comments)
+        });
+    } catch (e) {
+        res.status(500).send({ statusCode: 500, statusMessage: 'Internal Server Error', message: null, data: null });
+    }
+}
+
+const addComment = async (req, res) => {
+    var body = req.body;
+    var json = JSON.parse(JSON.stringify(body));
+
+    var comment_id = parseInt(json["comment_id"]);
+
+    try {
+
+        if (comment_id == -1) {
+            await Comment.create({
+                comment: json["comment"],
+                user_id: parseInt(json["user_id"]),
+                ticket_id: parseInt(json["ticket_id"]),
+            });
+        }
+        else {
+            await Comment.update({
+                comment: json["comment"],
+                user_id: parseInt(json["user_id"]),
+                ticket_id: parseInt(json["ticket_id"]),
+            }, {
+                where: {
+                    comment_id: comment_id
+                }
+            });
+        }
+
+        res.send({
+            statusCode: 200,
+            statusMessage: 'Ok',
+            message: 'Successfully retrieved all the users.',
+            data: JSON.stringify(""),
+        });
+    }
+    catch (e) {
+        res.status(500).send({ statusCode: 500, statusMessage: 'Internal Server Error', message: null, data: null });
+    }
+}
+
 const assignTicket = async (req, res) => {
     var body = req.body;
     var json = JSON.parse(JSON.stringify(body));
@@ -164,6 +232,7 @@ const createTicket = async (req, res) => {
                 type: parseInt(json["ticket_type"]),
                 deadline: json["deadline"],
                 date: json["deadline"],
+                priority: parseInt(json["priority"]),
                 status: 0
                 // assigned_to_id: json["assigned_to_id"]
             });
@@ -185,6 +254,7 @@ const createTicket = async (req, res) => {
                 type: parseInt(json["ticket_type"]),
                 deadline: json["deadline"],
                 date: json["deadline"],
+                priority: parseInt(json["priority"]),
                 status: 0
             }, {
                 where: {
@@ -210,6 +280,7 @@ const createTicket = async (req, res) => {
             type: parseInt(json["ticket_type"]),
             deadline: json["deadline"],
             date: json["deadline"],
+            priority: parseInt(json["priority"]),
             status: 0,
             ticket_id: ticket_id,
             assigned_from_user_id: parseInt(json["user_id"]),
@@ -1186,7 +1257,7 @@ const getTicketDetail = async (req, res) => {
 
         var ticketObj = await Ticket.findOne({
             attributes: ['ticket_id', 'title', 'description', 'deadline', 'project_id',
-                'type', 'status', 'user_id',
+                'type', 'status', 'user_id', 'priority',
                 [sequelize.col('ticket_user_mapping.from_user_id'), 'assigned_from_user_id'],
                 [sequelize.col('ticket_user_mapping.to_user_id'), 'assigned_to_user_id'],
                 [sequelize.col('project.project_name'), 'project_name'],
@@ -1235,9 +1306,10 @@ const getMyTickets = async (req, res) => {
     try {
 
         var tickets = await Ticket.findAll({
+            order: [['ticket_id', 'DESC']],
             required: true,
             attributes: ['ticket_id', 'title', 'description', 'deadline', 'project_id',
-                'type', 'status', 'user_id',
+                'type', 'status', 'user_id', 'priority',
                 [sequelize.col('ticket_user_mapping.FromUser.user_id'), 'assigned_from_user_id'],
                 [sequelize.col('ticket_user_mapping.ToUser.user_id'), 'assigned_to_user_id'],
                 [sequelize.col('ticket_user_mapping.FromUser.name'), 'assigned_from_user_name'],
@@ -1295,8 +1367,9 @@ const getAssignedTickets = async (req, res) => {
     try {
 
         var tickets = await Ticket.findAll({
+            order: [['ticket_id', 'DESC']],
             attributes: ['ticket_id', 'title', 'description', 'deadline', 'project_id',
-                'type', 'status', 'user_id',
+                'type', 'status', 'user_id', 'priority',
                 [sequelize.col('ticket_user_mapping.FromUser.user_id'), 'assigned_from_user_id'],
                 [sequelize.col('ticket_user_mapping.ToUser.user_id'), 'assigned_to_user_id'],
                 [sequelize.col('ticket_user_mapping.FromUser.name'), 'assigned_from_user_name'],
@@ -1572,6 +1645,8 @@ const deleteUser = async (req, res) => {
 };
 
 module.exports = {
+    getComments,
+    addComment,
     getAssignedTickets,
     assignTicket,
     subcriptionEndpoint,

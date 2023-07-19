@@ -33,6 +33,10 @@ router.post('/updatetrip', apiController.updateTrip);
 
 router.post('/assignticket', apiController.assignTicket);
 
+router.post('/addcomment', apiController.addComment);
+
+router.get('/allcomments', apiController.getComments);
+
 router.get('/assignedtickets', apiController.getAssignedTickets);
 
 router.post('/canceltrip', apiController.cancelTrip);
