@@ -24,6 +24,8 @@ const { Project } = require('../databases/models/project.model');
 const { Op, where } = require('sequelize');
 const { map } = require('../app');
 const { Comment } = require('../databases/models/comment.model');
+const { Attachment } = require('../databases/models/attachment.model');
+const { TicketUserStatus } = require('../databases/models/ticket_user_status.model');
 
 Comment.belongsTo(Users, { foreignKey: 'user_id', targetKey: 'user_id' });
 Ticket.belongsTo(TicketUserMappingModel, { foreignKey: 'ticket_id', targetKey: 'ticket_id' });
@@ -31,6 +33,7 @@ Ticket.belongsTo(Project, { foreignKey: 'project_id', targetKey: 'project_id' })
 Ticket.belongsTo(Users, { foreignKey: 'user_id', targetKey: 'user_id' });
 TicketUserMappingModel.belongsTo(Users, { as: 'FromUser', foreignKey: 'from_user_id', targetKey: 'user_id' });
 TicketUserMappingModel.belongsTo(Users, { as: 'ToUser', foreignKey: 'to_user_id', targetKey: 'user_id' });
+Ticket.belongsTo(TicketUserStatus, {foreignKey: 'ticket_id', targetKey: 'ticket_id'});
 
 // Trip.belongsTo(GroupApproval, { foreignKey: 'tripId', targetKey: 'trip_id' });
 // Trip.belongsTo(Project, { foreignKey: 'projectId', targetKey: 'projectId' });
@@ -223,7 +226,7 @@ const createTicket = async (req, res) => {
 
         var ticketObj = null;
 
-        if (ticket_id == -1) {
+        if (ticket_id == -1) { //Create New Ticket
             ticketObj = await Ticket.create({
                 title: json["title"],
                 user_id: parseInt(json["user_id"]),
@@ -240,12 +243,25 @@ const createTicket = async (req, res) => {
             await TicketUserMappingModel.create({
                 ticket_id: parseInt(ticketObj.ticket_id),
                 from_user_id: parseInt(json['user_id']),
-                to_user_id: parseInt(json['assigned_to_user_id'])
+                to_user_id: parseInt(json['assigned_to_user_id']),
+                status: -1
+            });
+
+            await TicketUserStatus.create({
+                ticket_id: parseInt(ticketObj.ticket_id),
+                user_id: parseInt(json['user_id']),
+                status: 1
+            });
+
+            await TicketUserStatus.create({
+                ticket_id: parseInt(ticketObj.ticket_id),
+                user_id: parseInt(json['assigned_to_user_id']),
+                status: 0
             });
 
             ticket_id = ticketObj.ticket_id;
         }
-        else {
+        else { //Update Existing Ticket
             ticketObj = await Ticket.update({
                 title: json["title"],
                 user_id: parseInt(json["user_id"]),
@@ -255,22 +271,68 @@ const createTicket = async (req, res) => {
                 deadline: json["deadline"],
                 date: json["deadline"],
                 priority: parseInt(json["priority"]),
-                status: 0
+                status: 1
             }, {
                 where: {
                     ticket_id: ticket_id
                 }
             });
 
-            await TicketUserMappingModel.update({
-                from_user_id: parseInt(json['user_id']),
-                to_user_id: parseInt(json['assigned_to_user_id'])
-            }, {
+            var assigned_to_user = await TicketUserMappingModel.findOne({
                 where: {
-                    ticket_id: ticket_id
+                    ticket_id: ticket_id,
+                    from_user_id: parseInt(json['user_id']),
+                    to_user_id: parseInt(json['assigned_to_user_id'])
                 }
             });
+
+            if (assigned_to_user == null) { //If assigned to new user
+                //delete old mapping, assigned from this user.
+                await TicketUserMappingModel.destroy({
+                    where: {
+                        ticket_id: ticket_id,
+                        from_user_id: parseInt(json['user_id']),
+                        status: -1
+                    }
+                });
+
+                //create new mapping for new user.
+                await TicketUserMappingModel.create({
+                    ticket_id: ticket_id,
+                    from_user_id: parseInt(json['user_id']),
+                    to_user_id: parseInt(json['assigned_to_user_id'])
+                });
+            } else { //If assigned to same user.
+
+            }
+
+            //Check if user status exists.
+            var user_status = await TicketUserStatus.findOne({
+                where: {
+                    ticket_id: ticket_id,
+                    user_id: parseInt(json['assigned_to_user_id'])
+                }
+            });
+
+            if (user_status == null) { //if new user.
+                await TicketUserStatus.create({
+                    ticket_id: parseInt(ticketObj.ticket_id),
+                    user_id: parseInt(json['assigned_to_user_id']),
+                    status: 0
+                });
+            }
+            else { //if assgiened to same user.
+
+            }
         }
+
+        await Attachment.update({
+            ticket_id: ticket_id
+        }, {
+            where: {
+                ticket_id: (-100 + parseInt(json["user_id"]))
+            }
+        });
 
         var ticketObject = {
             title: json["title"],
@@ -1252,36 +1314,65 @@ const subcriptionEndpoint = async (req, res) => {
 
 const getTicketDetail = async (req, res) => {
     var ticket_id = req.query.ticket_id;
+    var user_id = parseInt(req.query.user_id);
 
     try {
 
         var ticketObj = await Ticket.findOne({
             attributes: ['ticket_id', 'title', 'description', 'deadline', 'project_id',
-                'type', 'status', 'user_id', 'priority',
-                [sequelize.col('ticket_user_mapping.from_user_id'), 'assigned_from_user_id'],
-                [sequelize.col('ticket_user_mapping.to_user_id'), 'assigned_to_user_id'],
-                [sequelize.col('project.project_name'), 'project_name'],
-                [sequelize.col('ticket_user_mapping.FromUser.name'), 'assigned_from_user_name'],
-                [sequelize.col('ticket_user_mapping.ToUser.name'), 'assigned_to_user_name'],],
+                'type', 'status', 'user_id', 'priority'],
+            // [sequelize.col('ticket_user_mapping.from_user_id'), 'assigned_from_user_id'],
+            // [sequelize.col('ticket_user_mapping.to_user_id'), 'assigned_to_user_id'],
+            // [sequelize.col('project.project_name'), 'project_name'],
+            // [sequelize.col('ticket_user_mapping.FromUser.name'), 'assigned_from_user_name'],
+            // [sequelize.col('ticket_user_mapping.ToUser.name'), 'assigned_to_user_name'],
+            // [sequelize.col('user.name'), 'created_by_user_name'],
+            // [sequelize.col('user.user_id'), 'created_by_user_id']],
             include: [{
-                model: TicketUserMappingModel,
-                as: TicketUserMappingModel,
-                include: [{
-                    model: Users,
-                    as: 'FromUser'
-                }, {
-                    model: Users,
-                    as: 'ToUser'
-                }]
+                model: Users,
+                as: Users
             }, {
                 model: Project,
-                as: Project,
-                attributes: []
+                as: Project
             }],
             where: {
                 ticket_id: parseInt(ticket_id)
             }
         });
+
+        ticketObj = JSON.parse(JSON.stringify(ticketObj));
+        ticketObj.tickets_mapping = JSON.parse(JSON.stringify(await TicketUserMappingModel.findAll({
+            // raw: true,
+            attributes: [
+                'ticket_id',
+                [sequelize.col('FromUser.user_id'), 'assigned_from_user_id'],
+                [sequelize.col('ToUser.user_id'), 'assigned_to_user_id'],
+                [sequelize.col('FromUser.name'), 'assigned_from_user_name'],
+                [sequelize.col('ToUser.name'), 'assigned_to_user_name']],
+            // raw: true,
+            include: [{
+                model: Users,
+                as: 'FromUser'
+            }, {
+                model: Users,
+                as: 'ToUser'
+            }],
+            where: {
+                ticket_id: ticket_id
+            }
+        })));
+        ticketObj.ticket_status = JSON.parse(JSON.stringify(await TicketUserStatus.findAll({
+            where: {
+                ticket_id: ticket_id
+            }
+        })));
+
+        ticketObj.my_status = JSON.parse(JSON.stringify(await TicketUserStatus.findOne({
+            where: {
+                ticket_id: parseInt(ticket_id),
+                user_id: user_id
+            }
+        })));
 
         res.status(200).send({
             statusCode: 201,
@@ -1307,42 +1398,47 @@ const getMyTickets = async (req, res) => {
 
         var tickets = await Ticket.findAll({
             order: [['ticket_id', 'DESC']],
+            // raw: true,
             required: true,
             attributes: ['ticket_id', 'title', 'description', 'deadline', 'project_id',
-                'type', 'status', 'user_id', 'priority',
-                [sequelize.col('ticket_user_mapping.FromUser.user_id'), 'assigned_from_user_id'],
-                [sequelize.col('ticket_user_mapping.ToUser.user_id'), 'assigned_to_user_id'],
-                [sequelize.col('ticket_user_mapping.FromUser.name'), 'assigned_from_user_name'],
-                [sequelize.col('ticket_user_mapping.ToUser.name'), 'assigned_to_user_name'],
-                [sequelize.col('user.name'), 'created_by_user_name'],
-                [sequelize.col('user.user_id'), 'created_by_user_id'],
-                [sequelize.col('project.project_name'), 'project_name']],
-            include: [
-                {
-                    model: TicketUserMappingModel,
-                    as: TicketUserMappingModel,
-                    include: [{
-                        model: Users,
-                        as: 'FromUser'
-                    }, {
-                        model: Users,
-                        as: 'ToUser'
-                    }]
-                },
-                {
-                    model: Users,
-                    as: Users
-                },
-                {
-                    model: Project,
-                    as: Project,
-                    attributes: []
-                }
-            ],
+                'type', 'status', 'user_id', 'priority'],
+            include: [{
+                model: Users,
+                as: Users
+            },
+            {
+                model: Project,
+                as: Project
+            }],
             where: {
                 user_id: parseInt(userId)
             }
         });
+
+        tickets = JSON.parse(JSON.stringify(tickets))
+
+        for (var i = 0; i < tickets.length; i++) {
+            tickets[i].tickets_mapping = JSON.parse(JSON.stringify(await TicketUserMappingModel.findAll({
+                // raw: true,
+                attributes: ['ticket_id',
+                    [sequelize.col('FromUser.user_id'), 'assigned_from_user_id'],
+                    [sequelize.col('ToUser.user_id'), 'assigned_to_user_id'],
+                    [sequelize.col('FromUser.name'), 'assigned_from_user_name'],
+                    [sequelize.col('ToUser.name'), 'assigned_to_user_name']],
+                // raw: true,
+                include: [{
+                    model: Users,
+                    as: 'FromUser'
+                }, {
+                    model: Users,
+                    as: 'ToUser'
+                }],
+                where: {
+                    ticket_id: tickets[i].ticket_id
+                }
+            })));
+        }
+
 
         res.status(200).send({
             statusCode: 201,
@@ -1369,14 +1465,7 @@ const getAssignedTickets = async (req, res) => {
         var tickets = await Ticket.findAll({
             order: [['ticket_id', 'DESC']],
             attributes: ['ticket_id', 'title', 'description', 'deadline', 'project_id',
-                'type', 'status', 'user_id', 'priority',
-                [sequelize.col('ticket_user_mapping.FromUser.user_id'), 'assigned_from_user_id'],
-                [sequelize.col('ticket_user_mapping.ToUser.user_id'), 'assigned_to_user_id'],
-                [sequelize.col('ticket_user_mapping.FromUser.name'), 'assigned_from_user_name'],
-                [sequelize.col('ticket_user_mapping.ToUser.name'), 'assigned_to_user_name'],
-                [sequelize.col('user.name'), 'created_by_user_name'],
-                [sequelize.col('user.user_id'), 'created_by_user_id'],
-                [sequelize.col('project.project_name'), 'project_name']],
+                'type', 'status', 'user_id', 'priority'],
             include: [
                 {
                     model: TicketUserMappingModel,
@@ -1398,11 +1487,34 @@ const getAssignedTickets = async (req, res) => {
                 },
                 {
                     model: Project,
-                    as: Project,
-                    attributes: []
+                    as: Project
                 }
             ]
         });
+
+        tickets = JSON.parse(JSON.stringify(tickets));
+        for (var i = 0; i < tickets.length; i++) {
+            tickets[i].tickets_mapping = JSON.parse(JSON.stringify(await TicketUserMappingModel.findAll({
+                // raw: true,
+                attributes: [
+                    'ticket_id',
+                    [sequelize.col('FromUser.user_id'), 'assigned_from_user_id'],
+                    [sequelize.col('ToUser.user_id'), 'assigned_to_user_id'],
+                    [sequelize.col('FromUser.name'), 'assigned_from_user_name'],
+                    [sequelize.col('ToUser.name'), 'assigned_to_user_name']],
+                // raw: true,
+                include: [{
+                    model: Users,
+                    as: 'FromUser'
+                }, {
+                    model: Users,
+                    as: 'ToUser'
+                }],
+                where: {
+                    ticket_id: tickets[i].ticket_id
+                }
+            })));
+        }
 
         res.status(200).send({
             statusCode: 201,

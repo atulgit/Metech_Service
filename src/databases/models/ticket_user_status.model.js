@@ -1,10 +1,10 @@
 const { DataTypes, Model } = require("sequelize");
 const { sequelize } = require('../dbconnection');
 
-class TicketUserMappingModel extends Model { }
+class TicketUserStatus extends Model { }
 
-TicketUserMappingModel.init({
-    mapping_id: {
+TicketUserStatus.init({
+    ticket_user_status_id: {
         type: DataTypes.INTEGER,
         autoIncrement: true,
         allowNull: false,
@@ -13,10 +13,7 @@ TicketUserMappingModel.init({
     ticket_id: {
         type: DataTypes.INTEGER
     },
-    from_user_id: {
-        type: DataTypes.INTEGER
-    },
-    to_user_id: {
+    user_id: {
         type: DataTypes.INTEGER
     },
     status: {
@@ -25,11 +22,11 @@ TicketUserMappingModel.init({
 }, {
 
     sequelize, // Pass the connection instance
-    modelName: "ticket_user_mappings", // Provide the name of the table
+    modelName: "ticket_user_status_mappings", // Provide the name of the table
     timestamps: false
 
 });
 
 module.exports = {
-    TicketUserMappingModel
+    TicketUserStatus
 }

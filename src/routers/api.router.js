@@ -3,6 +3,8 @@ var bodyParser = require('body-parser');
 const express = require('express');
 
 const apiController = require('../controllers/api.controller');
+const ticketController = require('../controllers/ticket.controller');
+const attachmentController = require('../controllers/attachment.controller');
 const mtmsEmailer = require('../models/emailer.model');
 
 const { route } = require('../app');
@@ -23,13 +25,19 @@ router.post('/rejecttrip', apiController.rejectTrip);
 
 router.get('/mytickets', apiController.getMyTickets);
 
+router.get('/attachments', attachmentController.getAllAttachments);
+
 router.get('/projects', apiController.getProjects);
 
 router.get('/otherstrips', apiController.getOthersTripsGroup);
 
 router.post('/ticket', apiController.createTicket);
 
+router.post('/deleteattachment', attachmentController.deleteAttachment);
+
 router.post('/updatetrip', apiController.updateTrip);
+
+router.post('/createattachment', attachmentController.createAttachment);
 
 router.post('/assignticket', apiController.assignTicket);
 
@@ -48,6 +56,8 @@ router.get('/usergroups', apiController.getUserGroups);
 router.get('/deleteuser/:userId', apiController.deleteUser);
 
 router.post('/deletetrip', apiController.deleteTrip);
+
+router.post('/setstatus', ticketController.setTicketStatus);
 
 router.post('/sendtrip', apiController.sendForApproval);
 
